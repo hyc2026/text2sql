@@ -1,0 +1,142 @@
+
+# primitive fields
+string, column, singleton, object, int, table
+
+# Spider:
+# sql {
+#   'select': (isDistinct(bool), [(agg_id, val_unit), (agg_id, val_unit), ...])
+#   'from': {'table_units': [table_unit1, table_unit2, ...], 'conds': condition}
+#   'where': condition
+#   'groupBy': [col_unit1, col_unit2, ...]
+#   'orderBy': ('asc'/'desc', [val_unit1, val_unit2, ...])
+#   'having': condition
+#   'limit': None/limit value
+#   'intersect': None/sql
+#   'except': None/sql
+#   'union': None/sql
+# }
+# Dusql
+# select: [(agg_id, val_unit), (agg_id, val_unit), ...]
+# from: {'table_units': [table_unit, table_unit, ...], 'conds': condition}
+# where: condition
+# groupBy: [col_unit, ...]
+# orderBy: asc/desc, [(agg_id, val_unit), ...]
+# having: condition
+# limit: None/number
+# intersect: None/sql
+# except: None/sql 
+# union: None/sql
+
+sql = sql(select select, from from, cond? where, col_unit* group_by, order_by? order_by, cond? having, int? limit, sql? intersect, sql? except, sql? union)
+
+# Spider
+# val: number(float)/string(str)/sql(dict)
+# Dusql
+# val: number(float)/string(str)/sql(dict)
+
+val = Number(object f)
+    | String(string s)
+    | ValSql(sql s)
+    | ColUnit(col_unit c)
+    | Terminal
+
+# ------------------------------------------------------------------------------------
+# Spider
+# col_unit: (agg_id, col_id, isDistinct(bool))
+# col_unit = col_unit(agg_type agg_id, column col_id, singleton is_distinct)
+# Dusql
+# col_unit: (agg_id, col_id)
+# ------------------------------------------------------------------------------------
+col_unit = col_unit(agg_type agg_id, column col_id)
+
+# Spider
+# val_unit: (unit_op, col_unit1, col_unit2)
+# val_unit = (
+#     unit_type unit_op,
+#     col_unit col_unit1,
+#     col_unit col_unit2
+# )
+# Dusql
+# val_unit: (calc_op, col_unit1, col_unit2)
+val_unit = Column(col_unit col_unit1)
+         | Minus(col_unit col_unit1, col_unit col_unit2)
+         | Plus(col_unit col_unit1, col_unit col_unit2)
+         | Times(col_unit col_unit1, col_unit col_unit2)
+         | Divide(col_unit col_unit1, col_unit col_unit2)
+
+# Spider
+# table_unit: (table_type, col_unit/sql)
+# Dusql
+# table_unit: (table_type, table_id/sql)
+table_unit = TableUnitSql(sql s)
+           | Table(table table_id)
+
+# ------------------------------------------------------------------------------------
+# Spider
+# condition: [cond_unit1, 'and'/'or', cond_unit2, ...]
+# cond_unit: (not_op, op_id, val_unit, val1, val2)
+# Dusql
+# condition: [cond_unit1, 'and'/'or', cond_unit2, ...]
+# cond_unit: (agg_id, cond_op, val_unit, val1, val2)
+# cond_op: (not_in, between, =, >, <, >=, <=, !=, in, like)
+# ------------------------------------------------------------------------------------
+cond = And(cond left, cond right)
+     | Or(cond left, cond right)
+     | NI(agg aggs, val val1)
+     | Between(agg aggs, val val1, val val2)
+     | Eq(agg aggs, val val1)
+     | Gt(agg aggs, val val1)
+     | Lt(agg aggs, val val1)
+     | Ge(agg aggs, val val1)
+     | Le(agg aggs, val val1)
+     | Ne(agg aggs, val val1)
+     | In(agg aggs, val val1)
+     | Like(agg aggs, val val1)
+     # These don't ever appear in the dataset
+     # | Is(val_unit val_unit, val val1)
+     # | Exists(val_unit val_unit, val val1)
+     # | CondUnit(singleton not_op, cond_op op_id, val_unit val_unit, val val1, val val2)
+
+# ------------------------------------------------------------------------------------
+# Spider
+# 'select': (isDistinct(bool), [(agg_id, val_unit), (agg_id, val_unit), ...])
+# Dusql
+# select: [(agg_id, val_unit), (agg_id, val_unit), ...]
+# ------------------------------------------------------------------------------------
+select = select(agg* aggs)
+agg = agg(agg_type agg_id, val_unit val_unit)
+
+# Spider
+# 'from': {'table_units': [table_unit1, table_unit2, ...], 'conds': condition}
+# Dusql
+# from: {'table_units': [table_unit, table_unit, ...], 'conds': condition}
+from = from(table_unit* table_units, cond? conds)
+
+# ------------------------------------------------------------------------------------
+# Spider
+# 'orderBy': ('asc'/'desc', [val_unit1, val_unit2, ...])
+# Dusql
+# orderBy: asc/desc, [(agg_id, val_unit), ...]
+# ------------------------------------------------------------------------------------
+order_by = order_by(order order, agg* aggs)
+
+# CLAUSE_KEYWORDS = ('select', 'from', 'where', 'group', 'order', 'limit', 'intersect', 'union', 'except')
+# JOIN_KEYWORDS = ('join', 'on', 'as')
+
+# WHERE_OPS = ('not', 'between', '=', '>', '<', '>=', '<=', '!=', 'in', 'like', 'is', 'exists')
+# cond_type = NI|Between | Eq | Gt | Lt | Ge | Le | Ne | In | Like | Is | Exists
+
+# UNIT_OPS = ('none', '-', '+', "*", '/')
+# unit_type = NoneUnitOp | Minus | Plus | Times | Divide
+
+# AGG_OPS = ('none', 'max', 'min', 'count', 'sum', 'avg')
+agg_type = NoneAggOp | Max | Min | Count | Sum | Avg
+
+# TABLE_TYPE = {
+#     'sql': "sql",
+#     'table_unit': "table_unit",
+# }
+# COND_OPS = ('and', 'or')
+# SQL_OPS = ('intersect', 'union', 'except')
+# ORDER_OPS = ('desc', 'asc')
+order = Asc | Desc
